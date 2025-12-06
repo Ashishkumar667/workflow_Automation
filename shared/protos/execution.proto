@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package execution;
+
+// Execution Service - Handles workflow execution orchestration
+service ExecutionService {
+  rpc ExecuteWorkflow(ExecuteWorkflowRequest) returns (ExecuteWorkflowResponse);
+  rpc GetExecutionStatus(GetExecutionStatusRequest) returns (GetExecutionStatusResponse);
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+}
+
+// Execute Workflow
+message ExecuteWorkflowRequest {
+  string workflow_id = 1;
+  string user_id = 2;
+  map<string, string> input_data = 3;
+  string trigger_source = 4; // e.g., "manual", "webhook", "scheduled"
+}
+
+message ExecuteWorkflowResponse {
+  string execution_id = 1;
+  string status = 2; // "queued", "running", "completed", "failed"
+  string message = 3;
+}
+
+// Get Execution Status
+message GetExecutionStatusRequest {
+  string execution_id = 1;
+}
+
+message GetExecutionStatusResponse {
+  string execution_id = 1;
+  string workflow_id = 2;
+  string status = 3;
+  int32 current_step = 4;
+  int32 total_steps = 5;
+  repeated StepResult step_results = 6;
+  string error_message = 7;
+  int64 started_at = 8;
+  int64 completed_at = 9;
+}
+
+message StepResult {
+  int32 step_number = 1;
+  string step_name = 2;
+  string status = 3;
+  string output = 4;
+  string error = 5;
+  int64 started_at = 6;
+  int64 completed_at = 7;
+}
+
+// Cancel Execution
+message CancelExecutionRequest {
+  string execution_id = 1;
+}
+
+message CancelExecutionResponse {
+  bool success = 1;
+  string message = 2;
+}

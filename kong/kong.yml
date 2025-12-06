@@ -1,0 +1,69 @@
+_format_version: "3.0"
+
+services:
+  - name: auth-service
+    url: http://auth-service:3001
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/auth
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Authorization
+            - Content-Type
+          exposed_headers:
+            - X-Auth-Token
+          credentials: true
+          max_age: 3600
+
+  - name: workflow-service
+    url: http://workflow-service:3002
+    routes:
+      - name: workflow-routes
+        paths:
+          - /api/workflows
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+
+  - name: webhook-service
+    url: http://webhook-service:3005
+    routes:
+      - name: webhook-routes
+        paths:
+          - /api/webhooks
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 1000
+          policy: local
+
+# JWT Plugin Configuration (Commented out - requires proper setup)
+# plugins:
+#   - name: jwt
+#     route: workflow-routes
+#     config:
+#       secret_is_base64: false
+#       claims_to_verify:
+#         - exp

@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: workflow-ingress
+  namespace: workflow-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: workflow.example.com
+    http:
+      paths:
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 3001
+      - path: /api/workflows
+        pathType: Prefix
+        backend:
+          service:
+            name: workflow-service
+            port:
+              number: 3002
+      - path: /api/webhooks
+        pathType: Prefix
+        backend:
+          service:
+            name: webhook-service
+            port:
+              number: 3005

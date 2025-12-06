@@ -1,0 +1,28 @@
+{
+    "name": "execution-service",
+    "version": "1.0.0",
+    "description": "Workflow execution service with gRPC and BullMQ",
+    "main": "dist/server.js",
+    "scripts": {
+        "proto:compile": "echo 'Using proto-loader at runtime'",
+        "build": "tsc",
+        "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+        "dev:worker": "ts-node-dev --respawn --transpile-only src/worker/workflow-worker.ts",
+        "start": "node dist/server.js",
+        "start:worker": "node dist/worker/workflow-worker.js"
+    },
+    "dependencies": {
+        "@grpc/grpc-js": "^1.9.14",
+        "@grpc/proto-loader": "^0.7.10",
+        "bullmq": "^5.0.0",
+        "ioredis": "^5.3.2",
+        "dotenv": "^16.3.1",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "@types/uuid": "^9.0.7",
+        "typescript": "^5.3.0",
+        "ts-node-dev": "^2.0.0"
+    }
+}

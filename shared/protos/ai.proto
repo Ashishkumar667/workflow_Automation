@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package ai;
+
+// AI Service - Mock LLM service for AI operations
+service AIService {
+  rpc GenerateText(GenerateTextRequest) returns (GenerateTextResponse);
+  rpc GetEmbedding(GetEmbeddingRequest) returns (GetEmbeddingResponse);
+  rpc AnalyzeSentiment(AnalyzeSentimentRequest) returns (AnalyzeSentimentResponse);
+}
+
+// Generate Text
+message GenerateTextRequest {
+  string prompt = 1;
+  string model = 2; // e.g., "gpt-4", "claude-3"
+  int32 max_tokens = 3;
+  float temperature = 4;
+  map<string, string> parameters = 5;
+}
+
+message GenerateTextResponse {
+  string text = 1;
+  string model_used = 2;
+  int32 tokens_used = 3;
+  float confidence = 4;
+}
+
+// Get Embedding
+message GetEmbeddingRequest {
+  string text = 1;
+  string model = 2; // e.g., "text-embedding-3-small"
+}
+
+message GetEmbeddingResponse {
+  repeated float embedding = 1;
+  int32 dimensions = 2;
+}
+
+// Analyze Sentiment
+message AnalyzeSentimentRequest {
+  string text = 1;
+}
+
+message AnalyzeSentimentResponse {
+  string sentiment = 1; // "positive", "negative", "neutral"
+  float score = 2; // -1.0 to 1.0
+  map<string, float> emotions = 3; // e.g., "joy": 0.8, "anger": 0.1
+}

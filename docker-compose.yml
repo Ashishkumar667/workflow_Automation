@@ -1,0 +1,230 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7
+    container_name: workflow-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - workflow-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: workflow-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - workflow-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/auth-db?authSource=admin
+      JWT_SECRET: super-secret-jwt-key-change-in-production
+      JWT_REFRESH_SECRET: super-secret-refresh-key-change-in-production
+      JWT_EXPIRES_IN: 1h
+      JWT_REFRESH_EXPIRES_IN: 7d
+      NODE_ENV: development
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - workflow-network
+
+  # Workflow Service
+  workflow-service:
+    build:
+      context: .
+      dockerfile: services/workflow-service/Dockerfile
+    container_name: workflow-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/workflow-db?authSource=admin
+      EXECUTION_SERVICE_URL: execution-service:50051
+      NODE_ENV: development
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      execution-service:
+        condition: service_started
+    networks:
+      - workflow-network
+
+  # AI Service
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai-service/Dockerfile
+    container_name: ai-service
+    restart: unless-stopped
+    ports:
+      - "50052:50052"
+    environment:
+      GRPC_PORT: 50052
+      NODE_ENV: development
+    networks:
+      - workflow-network
+
+  # Execution Service (gRPC Server)
+  execution-service:
+    build:
+      context: .
+      dockerfile: services/execution-service/Dockerfile
+    container_name: execution-service
+    restart: unless-stopped
+    ports:
+      - "50051:50051"
+    environment:
+      GRPC_PORT: 50051
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_SERVICE_URL: ai-service:50052
+      NODE_ENV: development
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    networks:
+      - workflow-network
+
+  # Execution Worker (BullMQ Worker)
+  execution-worker:
+    build:
+      context: .
+      dockerfile: services/execution-service/Dockerfile
+    container_name: execution-worker
+    restart: unless-stopped
+    command: ["node", "dist/worker/workflow-worker.js"]
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_SERVICE_URL: ai-service:50052
+      NODE_ENV: development
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    networks:
+      - workflow-network
+
+  # Webhook Service
+  webhook-service:
+    build:
+      context: ./services/webhook-service
+      dockerfile: Dockerfile
+    container_name: webhook-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      WEBHOOK_SECRET: webhook-secret-key
+      NODE_ENV: development
+    networks:
+      - workflow-network
+
+  # Kong API Gateway (Optional)
+  kong-database:
+    image: postgres:15-alpine
+    container_name: kong-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong123
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+    networks:
+      - workflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kong-migration:
+    image: kong:3.5
+    container_name: kong-migration
+    command: kong migrations bootstrap
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong123
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    networks:
+      - workflow-network
+    restart: on-failure
+
+  kong:
+    image: kong:3.5
+    container_name: kong-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # Proxy
+      - "8001:8001"  # Admin API
+      - "8443:8443"  # Proxy SSL
+      - "8444:8444"  # Admin API SSL
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong123
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    depends_on:
+      kong-database:
+        condition: service_healthy
+      kong-migration:
+        condition: service_completed_successfully
+    networks:
+      - workflow-network
+
+networks:
+  workflow-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  kong_data:
